@@ -1,0 +1,273 @@
+Apps Script + VS Code + GitHub - Complete Workflow Guide
+=========================================================
+
+
+WORKFLOW OVERVIEW
+-----------------
+
+VS Code (Feature Branch)
+    |
+    ├── clasp pull          <- get latest from Apps Script
+    ├── make changes in VS Code
+    ├── clasp push          <- push to Apps Script Head
+    ├── Test deployments    <- test in browser
+    |
+    ▼
+git commit + push -> V1 branch on GitHub
+    |
+    ▼
+Pull Request -> Merge V1 into main
+    |
+    ▼
+GitHub Action fires automatically
+    ├── clasp push --force
+    └── clasp deploy -i <ID>    <- Same URL, updated
+
+
+=========================================================
+PHASE 1 - ONE TIME SETUP
+=========================================================
+
+Step 1 - Install Node.js
+Download from: https://nodejs.org/en/download/ then verify:
+
+    node --version
+    npm --version
+
+
+Step 2 - Install Clasp Globally
+
+    npm install -g @google/clasp
+    clasp --version
+
+
+Step 3 - Enable Apps Script API
+
+Go to https://script.google.com/home/usersettings
+Turn ON Google Apps Script API.
+
+
+Step 4 - Login to Google via Clasp
+
+    clasp login
+
+Browser opens -> Sign in with Google -> Allow access -> return to terminal
+
+
+Step 5 - Create Project Folder and Clone Script
+
+    mkdir BPMS-Script
+    cd BPMS-Script
+    clasp clone "YOUR_SCRIPT_ID_HERE"
+
+Find your Script ID in Apps Script editor -> Project Settings (gear icon)
+
+
+Step 6 - Install TypeScript Support
+
+    npm install @types/google-apps-script --save-dev
+
+
+Step 7 - Initialize Git
+
+    git init
+
+Create .gitignore file:
+
+    .clasprc.json
+    node_modules/
+    .env
+
+Create .claspignore file:
+
+    **/**
+    !appsscript.json
+    !*.gs
+    !src/*.gs
+    node_modules/
+    .git/
+    README.md
+
+
+Step 8 - Push First Commit to GitHub (main branch)
+
+    git add .
+    git commit -m "Initial commit - working production code"
+    git branch -M main
+    git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+    git push -u origin main
+
+Now your main branch = working production code
+
+
+=========================================================
+PHASE 2 - DAILY WORKFLOW (Repeat for Every Feature)
+=========================================================
+
+Step 11 - Always Pull Latest First
+
+    git checkout main
+    git pull origin main
+    clasp pull
+
+
+Step 12 - Create a New Feature Branch
+
+    git checkout -b V1
+
+    Verify:
+    git branch
+    (* V1  main)
+
+
+Step 13 - Make Changes in VS Code
+
+Edit your .gs files normally in VS Code.
+
+
+Step 14 - Push to Apps Script for Testing
+
+    clasp push
+
+
+Step 15 - Test in Apps Script Browser
+
+Click Deploy -> Test deployments -> Open the test URL -> Verify changes work
+
+
+Step 16 - Commit and Push to GitHub
+
+    git add .
+    git commit -m "Fixed onEdit logic - V1"
+    git push origin V1
+
+
+Step 17 - Raise Pull Request on GitHub
+
+Go to github.com -> your repo
+Click Compare & pull request
+Set base: main <- compare: V1
+Click Create pull request -> Merge pull request -> Confirm merge
+
+
+Step 18 - GitHub Action Fires Automatically
+
+Pushes code to Apps Script and updates your deployment.
+Same URL, new version.
+
+
+Step 19 - Clean Up Branch After Merge
+
+    git checkout main
+    git pull origin main
+    git branch -d V1
+
+
+Step 20 - Next Feature, Repeat from Step 12
+
+    git checkout -b V2
+
+
+=========================================================
+PHASE 3 - GITHUB ACTIONS SETUP (One Time)
+=========================================================
+
+Create this file in your project: .github/workflows/deploy.yml
+
+------------------------------------------------------------
+name: Auto Deploy to Apps Script
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Inject credentials
+        run: echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
+
+      - name: Push to Apps Script
+        run: clasp push --force
+
+      - name: Update Deployment (same URL always)
+        run: clasp deploy -i ${{ secrets.CLASP_DEPLOYMENT_ID }} --description "Deploy - ${{ github.sha }}"
+------------------------------------------------------------
+
+
+Add these 2 secrets in GitHub -> Settings -> Secrets -> Actions:
+
+CLASPRC_JSON
+    Run in PowerShell: Get-Content "$env:USERPROFILE\.clasprc.json"
+    Copy the entire JSON output and paste as secret value
+
+CLASP_DEPLOYMENT_ID
+    Run in terminal: clasp deployments
+    Copy the long deployment ID and paste as secret value
+
+Note: Use clasp deploy -i YOUR_ID to update existing deployment
+so the Web App URL never changes.
+
+
+=========================================================
+TROUBLESHOOTING
+=========================================================
+
+Error: Could not read API credentials
+Fix:   Re-paste CLASPRC_JSON secret, check for hidden whitespace
+
+Error: Script ID not found
+Fix:   Make sure .clasp.json is committed with correct scriptId
+
+Error: Permission denied
+Fix:   Re-run clasp login locally, update CLASPRC_JSON secret
+
+Error: Token expired
+Fix:   Run clasp login again, update CLASPRC_JSON secret
+
+Error: Cannot find path %USERPROFILE%
+Fix:   You are in PowerShell, use $env:USERPROFILE not %USERPROFILE%
+
+
+=========================================================
+QUICK REFERENCE - ALL KEY COMMANDS
+=========================================================
+
+# Auth
+clasp login                                    Login to Google
+clasp clone "SCRIPT_ID"                        Clone script locally
+
+# Daily
+clasp pull                                     Get latest from Apps Script
+clasp push                                     Push local code to Apps Script
+
+# Deployments
+clasp deployments                              List all deployments
+clasp deploy --description "msg"               Create NEW deployment (new URL)
+clasp deploy -i DEPLOY_ID --description "msg"  Update existing (same URL)
+
+# Git
+git checkout -b V1                             Create new branch
+git add . && git commit -m "message"           Stage and commit
+git push origin V1                             Push branch to GitHub
+git checkout main && git pull                  Switch to main and update
+git branch -d V1                               Delete merged branch
+
+# PowerShell
+Get-Content "$env:USERPROFILE\.clasprc.json"   View clasp credentials
+
+
+=========================================================
+BPMS - Order to Delivery | Apps Script + VS Code + GitHub
+=========================================================
